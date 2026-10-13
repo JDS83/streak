@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0f1115">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Streak">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>Streak</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#1a1e27; --card2:#222838;
+    --good:#2ecc71; --good-d:#1f8a4c;
+    --bad:#e74c3c; --bad-d:#a83224;
+    --txt:#e8ecf3; --mut:#8b93a7; --accent:#5b8cff;
+    --line:#2a3040;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,system-ui,"Segoe UI",Roboto,sans-serif}
+  body{max-width:520px;margin:0 auto;padding:16px 14px 48px}
+  h1{font-size:15px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--mut);font-weight:600;text-align:center;margin:4px 0 14px}
+
+  .streak{background:var(--card);border-radius:20px;padding:22px 18px;
+    text-align:center;border:1px solid var(--line)}
+  .streak .num{font-size:66px;font-weight:800;line-height:1;
+    background:linear-gradient(135deg,#6fe29a,#5b8cff);-webkit-background-clip:text;
+    background-clip:text;color:transparent}
+  .streak .lbl{color:var(--mut);font-size:13px;margin-top:6px;
+    letter-spacing:.06em;text-transform:uppercase}
+
+  .row{display:flex;gap:10px;margin-top:10px}
+  .stat{flex:1;background:var(--card);border:1px solid var(--line);
+    border-radius:16px;padding:14px;text-align:center}
+  .stat .v{font-size:26px;font-weight:700}
+  .stat .k{color:var(--mut);font-size:11px;margin-top:3px;
+    letter-spacing:.05em;text-transform:uppercase}
+
+  .goal{background:var(--card);border:1px solid var(--line);border-radius:16px;
+    padding:16px;margin-top:10px}
+  .goal .top{display:flex;justify-content:space-between;align-items:baseline;
+    margin-bottom:10px}
+  .goal .name{font-weight:700;font-size:16px}
+  .goal .left{color:var(--accent);font-size:13px;font-weight:600}
+  .bar{height:10px;background:var(--card2);border-radius:99px;overflow:hidden}
+  .bar>span{display:block;height:100%;
+    background:linear-gradient(90deg,var(--good),var(--accent));
+    border-radius:99px;transition:width .4s ease}
+  .goal.done .name::after{content:" ✓";color:var(--good)}
+
+  .cal{background:var(--card);border:1px solid var(--line);border-radius:18px;
+    padding:14px;margin-top:14px}
+  .cal .nav{display:flex;align-items:center;justify-content:space-between;
+    margin-bottom:12px}
+  .cal .nav button{background:var(--card2);border:1px solid var(--line);
+    color:var(--txt);width:40px;height:40px;border-radius:12px;font-size:20px}
+  .cal .nav .mo{font-weight:700;font-size:16px}
+  .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+  .dow{color:var(--mut);font-size:11px;text-align:center;padding-bottom:2px}
+  .day{aspect-ratio:1;border-radius:12px;display:flex;align-items:center;
+    justify-content:center;font-size:15px;font-weight:600;
+    background:var(--card2);border:1px solid var(--line);color:var(--txt)}
+  .day.blank{background:transparent;border:0}
+  .day.good{background:var(--good-d);border-color:var(--good);color:#eafff2}
+  .day.bad{background:var(--bad-d);border-color:var(--bad);color:#ffeae7}
+  .day.locked{opacity:.38}
+  .day.today{outline:2px solid var(--accent);outline-offset:1px}
+  .day.sel{outline:2px dashed #fff;outline-offset:2px}
+  .day:not(.locked){cursor:pointer}
+  .hint{color:var(--mut);font-size:12px;text-align:center;margin-top:12px;
+    line-height:1.5}
+  .legend{display:flex;gap:16px;justify-content:center;margin-top:10px;
+    font-size:12px;color:var(--mut)}
+  .legend i{width:12px;height:12px;border-radius:4px;display:inline-block;
+    vertical-align:-1px;margin-right:5px}
+
+  .backup{display:flex;gap:10px;margin-top:16px}
+  .backup button{flex:1;background:var(--card);border:1px solid var(--line);
+    color:var(--txt);border-radius:14px;padding:13px;font-size:14px;font-weight:600}
+
+  .quick{background:var(--card);border:1px solid var(--line);border-radius:16px;
+    padding:14px;margin-top:10px}
+  .quick .q-top{display:flex;justify-content:space-between;align-items:baseline;
+    margin-bottom:10px}
+  .quick .q-ttl{font-weight:700;font-size:15px}
+  .quick .q-date{color:var(--mut);font-size:12px}
+  .quick .btns{display:flex;gap:10px}
+  .quick button{flex:1;border:1px solid var(--line);color:var(--txt);
+    background:var(--card2);border-radius:12px;padding:12px;font-size:15px;
+    font-weight:600}
+  .quick button.g{border-color:var(--good)}
+  .quick button.b{border-color:var(--bad)}
+  .quick button.on-g{background:var(--good-d);border-color:var(--good);color:#eafff2}
+  .quick button.on-b{background:var(--bad-d);border-color:var(--bad);color:#ffeae7}
+</style>
+</head>
+<body>
+  <h1>Keep the Streak</h1>
+
+  <div class="streak">
+    <div class="num" id="cur">0</div>
+    <div class="lbl">current streak · good days</div>
+  </div>
+
+  <div class="row">
+    <div class="stat"><div class="v" id="max">0</div><div class="k">Best streak ever</div></div>
+  </div>
+
+  <div id="goalBox"></div>
+
+  <div class="quick">
+    <div class="q-top">
+      <span class="q-ttl">Set day</span>
+      <span class="q-date" id="qDate"></span>
+    </div>
+    <div class="btns">
+      <button class="g" id="qGood">Good</button>
+      <button class="b" id="qBad">Bad</button>
+    </div>
+  </div>
+
+  <div class="cal">
+    <div class="nav">
+      <button id="prev">‹</button>
+      <div class="mo" id="mo"></div>
+      <button id="next">›</button>
+    </div>
+    <div class="grid" id="dow"></div>
+    <div class="grid" id="days"></div>
+    <div class="legend">
+      <span><i style="background:var(--good-d);border:1px solid var(--good)"></i>Good</span>
+      <span><i style="background:var(--bad-d);border:1px solid var(--bad)"></i>Bad</span>
+      <span><i style="background:var(--card2);border:1px solid var(--line)"></i>Unset</span>
+    </div>
+    <div class="hint">Tap a past day to select it, then use the Good / Bad buttons above.<br>
+      Today &amp; future days unlock after they fully pass.</div>
+  </div>
+
+  <div class="backup">
+    <button id="export">⬇ Export backup</button>
+    <button id="import">⬆ Import backup</button>
+    <input type="file" id="file" accept=".json,application/json" hidden>
+  </div>
+  <div class="hint" id="bmsg">Back up to a .json file you keep in Drive.
+    Import to restore or move to a new phone.</div>
+
+<script>
+const KEY = "streak.days.v1";
+const MILESTONES = [
+  {n:3,   name:"3 days"},
+  {n:7,   name:"1 week"},
+  {n:14,  name:"2 weeks"},
+  {n:30,  name:"1 month"},
+  {n:60,  name:"2 months"},
+  {n:90,  name:"3 months"},
+  {n:180, name:"6 months"},
+  {n:365, name:"1 year"},
+];
+
+// ---- storage ----
+let data = load();
+function load(){ try{ return JSON.parse(localStorage.getItem(KEY))||{}; }catch(e){ return {}; } }
+function save(){ localStorage.setItem(KEY, JSON.stringify(data)); }
+
+// ---- date helpers (local time) ----
+const fmt = d => d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+function startOfToday(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
+function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+
+// ---- metrics ----
+function currentStreak(){
+  let d = addDays(startOfToday(), -1); // most recent completed day = yesterday
+  let s = 0;
+  while(data[fmt(d)] === "good"){ s++; d = addDays(d,-1); }
+  return s;
+}
+function bestStreak(){
+  const goods = Object.keys(data).filter(k=>data[k]==="good").sort();
+  let best=0, run=0, prev=null;
+  for(const k of goods){
+    const d = new Date(k+"T00:00:00");
+    if(prev && (d - prev)===86400000) run++; else run=1;
+    best = Math.max(best, run); prev = d;
+  }
+  return best;
+}
+// ---- render ----
+let view = startOfToday(); view.setDate(1);
+let selected = fmt(addDays(startOfToday(), -1)); // default: yesterday
+
+function render(){
+  const cur = currentStreak();
+  const best = Math.max(bestStreak(), cur);
+  document.getElementById("cur").textContent = cur;
+  document.getElementById("max").textContent = best;
+  renderGoal(cur);
+  renderQuick();
+  renderCal();
+}
+
+function renderQuick(){
+  const d = new Date(selected + "T00:00:00");
+  document.getElementById("qDate").textContent =
+    d.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});
+  const v = data[selected];
+  const g = document.getElementById("qGood"), b = document.getElementById("qBad");
+  g.className = "g" + (v==="good" ? " on-g" : "");
+  b.className = "b" + (v==="bad" ? " on-b" : "");
+  g.onclick = ()=> setDay(selected, "good");
+  b.onclick = ()=> setDay(selected, "bad");
+}
+
+function setDay(key, val){
+  if(data[key] === val) delete data[key]; // tap active value again to clear
+  else data[key] = val;
+  save(); render();
+}
+
+function renderGoal(cur){
+  const box = document.getElementById("goalBox");
+  const next = MILESTONES.find(m=>m.n>cur);
+  box.innerHTML = "";
+  if(!next){
+    box.innerHTML = `<div class="goal done"><div class="top"><span class="name">All goals reached</span></div>
+      <div class="hint" style="margin:0">You're unstoppable. 🏆</div></div>`;
+    return;
+  }
+  const prev = [...MILESTONES].reverse().find(m=>m.n<=cur)?.n || 0;
+  const pct = Math.round(((cur-prev)/(next.n-prev))*100);
+  box.innerHTML = `<div class="goal">
+    <div class="top"><span class="name">Next goal · ${next.name}</span>
+      <span class="left">${next.n-cur} day${next.n-cur===1?"":"s"} to go</span></div>
+    <div class="bar"><span style="width:${pct}%"></span></div></div>`;
+}
+
+function renderCal(){
+  const y=view.getFullYear(), m=view.getMonth();
+  document.getElementById("mo").textContent =
+    view.toLocaleString(undefined,{month:"long",year:"numeric"});
+
+  const dow=document.getElementById("dow");
+  if(!dow.dataset.set){ dow.dataset.set=1;
+    ["S","M","T","W","T","F","S"].forEach(x=>{
+      const e=document.createElement("div"); e.className="dow"; e.textContent=x; dow.appendChild(e);
+    });
+  }
+
+  const days=document.getElementById("days"); days.innerHTML="";
+  const first=new Date(y,m,1).getDay();
+  const n=new Date(y,m+1,0).getDate();
+  const todayKey=fmt(startOfToday());
+
+  for(let i=0;i<first;i++){ const b=document.createElement("div"); b.className="day blank"; days.appendChild(b); }
+
+  for(let day=1;day<=n;day++){
+    const dt=new Date(y,m,day); dt.setHours(0,0,0,0);
+    const key=fmt(dt);
+    const el=document.createElement("div");
+    el.className="day"; el.textContent=day;
+    const v=data[key];
+    if(v) el.classList.add(v);
+    if(key===todayKey) el.classList.add("today");
+    if(key===selected) el.classList.add("sel");
+    const locked = dt >= startOfToday(); // today & future not editable
+    if(locked) el.classList.add("locked");
+    else el.onclick=()=>{ selected=key; render(); };
+    days.appendChild(el);
+  }
+}
+
+document.getElementById("prev").onclick=()=>{ view.setMonth(view.getMonth()-1); renderCal(); };
+document.getElementById("next").onclick=()=>{ view.setMonth(view.getMonth()+1); renderCal(); };
+
+// ---- backup ----
+document.getElementById("export").onclick=()=>{
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "streak-backup-" + fmt(new Date()) + ".json";
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+const fileInput = document.getElementById("file");
+document.getElementById("import").onclick=()=> fileInput.click();
+fileInput.onchange=()=>{
+  const f = fileInput.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload=()=>{
+    try{
+      const incoming = JSON.parse(r.result);
+      if(typeof incoming!=="object" || Array.isArray(incoming)) throw 0;
+      const merge = confirm("OK = Merge with current data.\nCancel = Replace everything with the file.");
+      data = merge ? Object.assign({}, data, incoming) : incoming;
+      save(); render();
+      msg("Imported ✓");
+    }catch(e){ msg("Couldn't read that file — not a valid backup."); }
+    fileInput.value = "";
+  };
+  r.readAsText(f);
+};
+function msg(t){ document.getElementById("bmsg").textContent = t; }
+
+// ---- PWA: offline + installable ----
+if("serviceWorker" in navigator){
+  window.addEventListener("load", ()=> navigator.serviceWorker.register("./sw.js").catch(()=>{}));
+}
+
+render();
+</script>
+</body>
+</html>
