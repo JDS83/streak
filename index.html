@@ -98,6 +98,14 @@
   .quick button.b{border-color:var(--bad)}
   .quick button.on-g{background:var(--good-d);border-color:var(--good);color:#eafff2}
   .quick button.on-b{background:var(--bad-d);border-color:var(--bad);color:#ffeae7}
+
+  #cfx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9999}
+  .toast{position:fixed;left:50%;top:20%;transform:translateX(-50%);
+    background:var(--card);border:1px solid var(--good);color:var(--txt);
+    padding:14px 22px;border-radius:14px;font-weight:700;font-size:17px;
+    z-index:10000;box-shadow:0 10px 34px rgba(0,0,0,.55);white-space:nowrap;
+    opacity:0;transition:opacity .3s ease, transform .3s ease;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px)}
 </style>
 </head>
 <body>
@@ -217,9 +225,15 @@ function renderQuick(){
 }
 
 function setDay(key, val){
+  const before = currentStreak();
   if(data[key] === val) delete data[key]; // tap active value again to clear
   else data[key] = val;
-  save(); render();
+  save();
+  const after = currentStreak();
+  render();
+  // Celebrate the highest milestone newly crossed by this change.
+  const crossed = MILESTONES.filter(m => before < m.n && m.n <= after);
+  if(crossed.length) celebrate(crossed[crossed.length-1]);
 }
 
 function renderGoal(cur){
@@ -307,6 +321,64 @@ fileInput.onchange=()=>{
   r.readAsText(f);
 };
 function msg(t){ document.getElementById("bmsg").textContent = t; }
+
+// ---- celebration (silent) ----
+let toastTimer = null;
+function celebrate(m){
+  toast("🎉 " + m.name + " reached!");
+  const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if(!reduce) confetti();
+}
+function toast(text){
+  let el = document.getElementById("toast");
+  if(!el){ el = document.createElement("div"); el.id = "toast"; el.className = "toast"; document.body.appendChild(el); }
+  el.textContent = text;
+  requestAnimationFrame(()=> el.classList.add("show"));
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> el.classList.remove("show"), 2800);
+}
+function confetti(){
+  const cv = document.createElement("canvas");
+  cv.id = "cfx";
+  document.body.appendChild(cv);
+  const ctx = cv.getContext("2d");
+  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+  cv.width = window.innerWidth * DPR;
+  cv.height = window.innerHeight * DPR;
+  const colors = ["#2ecc71","#5b8cff","#6fe29a","#ffd166","#ff6b6b","#c77dff"];
+  const N = 150, g = 0.35 * DPR, cx = cv.width/2, cy = cv.height;
+  const parts = [];
+  for(let i=0;i<N;i++){
+    const ang = -Math.PI/2 + (i/N - .5) * Math.PI * 0.95; // fan upward from bottom
+    const sp = (9 + Math.random()*11) * DPR;
+    parts.push({
+      x: cx + (Math.random()-.5)*80*DPR, y: cy,
+      vx: Math.cos(ang)*sp*(.6+Math.random()*.9),
+      vy: Math.sin(ang)*sp*(.8+Math.random()*.6),
+      s: (5 + Math.random()*6) * DPR, rot: Math.random()*6.28,
+      vr: (Math.random()-.5)*.4, color: colors[i % colors.length],
+      square: Math.random() < .5
+    });
+  }
+  let frame = 0;
+  (function tick(){
+    frame++;
+    ctx.clearRect(0,0,cv.width,cv.height);
+    let alive = 0;
+    for(const p of parts){
+      p.vy += g; p.vx *= 0.995; p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+      if(p.y < cv.height + 40*DPR) alive++;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+      ctx.globalAlpha = Math.max(0, 1 - frame/230);
+      ctx.fillStyle = p.color;
+      if(p.square) ctx.fillRect(-p.s/2, -p.s/2, p.s, p.s*0.6);
+      else { ctx.beginPath(); ctx.arc(0,0,p.s/2,0,6.28); ctx.fill(); }
+      ctx.restore();
+    }
+    if(alive > 0 && frame < 230) requestAnimationFrame(tick);
+    else cv.remove();
+  })();
+}
 
 // ---- PWA: offline + installable ----
 if("serviceWorker" in navigator){
