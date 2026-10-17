@@ -185,19 +185,16 @@ function startOfToday(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
 function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
 
 // ---- metrics ----
+// Consecutive "good" days starting at d and stepping by step (-1 = back).
+function goodRun(d, step){
+  let s = 0;
+  while(data[fmt(d)] === "good"){ s++; d = addDays(d,step); }
+  return s;
+}
 // Consecutive "good" days counting back from yesterday (today isn't
 // editable until it passes). Any day that isn't "good" ends the count.
-//
-// pending=true treats an *unmarked* yesterday as "not logged yet" rather
-// than a break, so counting starts the day before. setDay uses this for
-// the streak before a tap, since yesterday is usually the day being logged.
-// A yesterday marked "bad" still breaks the streak.
-function currentStreak(pending=false){
-  let d = addDays(startOfToday(), -1); // most recent completed day = yesterday
-  if(pending && !data[fmt(d)]) d = addDays(d,-1);
-  let s = 0;
-  while(data[fmt(d)] === "good"){ s++; d = addDays(d,-1); }
-  return s;
+function currentStreak(){
+  return goodRun(addDays(startOfToday(), -1), -1); // most recent completed day = yesterday
 }
 function bestStreak(){
   const goods = Object.keys(data).filter(k=>data[k]==="good").sort();
@@ -235,18 +232,22 @@ function renderQuick(){
   b.onclick = ()=> setDay(selected, "bad");
 }
 
-// Set (or clear, if tapped again) a day's value, then celebrate any
-// milestone the current streak newly reached. Logging yesterday as the
-// next good day moves the streak by one (e.g. 4 -> 5); filling an older
-// gap can jump several days (2 -> 5) and celebrates the highest milestone
-// crossed.
+// Set (or clear, if tapped again) a day's value. When a day becomes good
+// it joins the good runs on either side of it into one run. The longer of
+// those neighbouring runs already reached its milestones, so only the ones
+// above it count as new (e.g. 12-15 good, marking 16 good: 4 -> 5, nothing
+// new; filling a gap between two 2-day runs: 2 -> 5, "3 days"). We only
+// celebrate when the joined run is the current streak, ending yesterday.
 function setDay(key, val){
-  const before = currentStreak(true);
   if(data[key] === val) delete data[key]; // tap active value again to clear
   else data[key] = val;
   save();
-  const after = currentStreak();
   render();
+  if(data[key] !== "good") return;
+  const day = new Date(key + "T00:00:00");
+  const back = goodRun(addDays(day,-1), -1), fwd = goodRun(addDays(day,1), 1);
+  if(fmt(addDays(day, fwd)) !== fmt(addDays(startOfToday(), -1))) return;
+  const before = Math.max(back, fwd), after = back + 1 + fwd;
   // Celebrate the highest milestone newly crossed by this change.
   const crossed = MILESTONES.filter(m => before < m.n && m.n <= after);
   if(crossed.length) celebrate(crossed[crossed.length-1]);
