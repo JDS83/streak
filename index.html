@@ -185,8 +185,16 @@ function startOfToday(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
 function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
 
 // ---- metrics ----
-function currentStreak(){
+// Consecutive "good" days counting back from yesterday (today isn't
+// editable until it passes). Any day that isn't "good" ends the count.
+//
+// pending=true treats an *unmarked* yesterday as "not logged yet" rather
+// than a break, so counting starts the day before. setDay uses this for
+// the streak before a tap, since yesterday is usually the day being logged.
+// A yesterday marked "bad" still breaks the streak.
+function currentStreak(pending=false){
   let d = addDays(startOfToday(), -1); // most recent completed day = yesterday
+  if(pending && !data[fmt(d)]) d = addDays(d,-1);
   let s = 0;
   while(data[fmt(d)] === "good"){ s++; d = addDays(d,-1); }
   return s;
@@ -227,8 +235,13 @@ function renderQuick(){
   b.onclick = ()=> setDay(selected, "bad");
 }
 
+// Set (or clear, if tapped again) a day's value, then celebrate any
+// milestone the current streak newly reached. Logging yesterday as the
+// next good day moves the streak by one (e.g. 4 -> 5); filling an older
+// gap can jump several days (2 -> 5) and celebrates the highest milestone
+// crossed.
 function setDay(key, val){
-  const before = currentStreak();
+  const before = currentStreak(true);
   if(data[key] === val) delete data[key]; // tap active value again to clear
   else data[key] = val;
   save();
