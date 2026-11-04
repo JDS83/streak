@@ -136,6 +136,49 @@ test("newMilestone: highest milestone crossed wins", ()=>{
 });
 test("newMilestone: run across DST and month boundary", ()=>
   eq(name(newMilestone(goods("2026-10-21",Y), Y, TODAY)), "2 weeks")); // 13 -> 14
+
+// ---- goalProgress ----
+test("goalProgress from zero", ()=>
+  eq(goalProgress(0), {next:MILESTONES[0], left:3, pct:0}));
+test("goalProgress right after reaching a milestone", ()=>
+  eq(goalProgress(3), {next:MILESTONES[1], left:4, pct:0}));
+test("goalProgress mid-way rounds the percentage", ()=>{
+  eq(goalProgress(5), {next:{n:7,name:"1 week"}, left:2, pct:50});
+  eq(goalProgress(22), {next:{n:30,name:"1 month"}, left:8, pct:50});
+  eq(goalProgress(1).pct, 33);
+});
+test("goalProgress one day before a milestone", ()=>
+  eq(goalProgress(364), {next:{n:365,name:"1 year"}, left:1, pct:99}));
+test("goalProgress is null once every milestone is reached", ()=>{
+  eq(goalProgress(365), null);
+  eq(goalProgress(1000), null);
+});
+
+// ---- isValidBackup ----
+test("isValidBackup accepts real backups", ()=>{
+  eq(isValidBackup({"2026-11-01":"good","2026-11-02":"bad"}), true);
+  eq(isValidBackup(goods("2026-01-01","2026-12-31")), true);
+  eq(isValidBackup({}), true); // export of an empty app
+});
+test("isValidBackup rejects non-objects", ()=>{
+  for(const x of [null, 5, "good", true, [], [{"2026-11-01":"good"}]]) eq(isValidBackup(x), false, JSON.stringify(x));
+});
+test("isValidBackup rejects other JSON files", ()=>{
+  eq(isValidBackup({name:"x", version:2}), false);
+  eq(isValidBackup({"2026-11-01":"good", theme:"dark"}), false);
+});
+test("isValidBackup rejects bad values", ()=>{
+  for(const v of ["great", "GOOD", "", 1, true, null, {}]) eq(isValidBackup({"2026-11-01":v}), false, JSON.stringify(v));
+});
+test("isValidBackup rejects malformed or impossible dates", ()=>{
+  for(const k of ["2026-2-01","26-11-01","2026/11/01","2026-11-01T00:00","2026-02-30","2026-13-01","2026-00-10","2027-02-29"])
+    eq(isValidBackup({[k]:"good"}), false, k);
+  eq(isValidBackup({"2028-02-29":"good"}), true, "leap day");
+});
+test("isValidBackup round-trips an export", ()=>{
+  const d = goods("2026-10-13","2026-11-02", {"2026-11-03":"bad"});
+  eq(isValidBackup(JSON.parse(JSON.stringify(d,null,2))), true);
+});
 </script>
 <script>
 // Summary last so a crash above shows up as a failure.
