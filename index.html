@@ -158,61 +158,21 @@
   <div class="hint" id="bmsg">Back up to a .json file you keep in Drive.
     Import to restore or move to a new phone.</div>
 
+<script src="streak.js"></script>
 <script>
 const KEY = "streak.days.v1";
-const MILESTONES = [
-  {n:3,   name:"3 days"},
-  {n:7,   name:"1 week"},
-  {n:14,  name:"2 weeks"},
-  {n:30,  name:"1 month"},
-  {n:60,  name:"2 months"},
-  {n:90,  name:"3 months"},
-  {n:120, name:"4 months"},
-  {n:150, name:"5 months"},
-  {n:180, name:"6 months"},
-  {n:270, name:"9 months"},
-  {n:365, name:"1 year"},
-];
-
 // ---- storage ----
 let data = load();
 function load(){ try{ return JSON.parse(localStorage.getItem(KEY))||{}; }catch(e){ return {}; } }
 function save(){ localStorage.setItem(KEY, JSON.stringify(data)); }
 
-// ---- date helpers (local time) ----
-const fmt = d => d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
-function startOfToday(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
-function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
-
-// ---- metrics ----
-// Consecutive "good" days starting at d and stepping by step (-1 = back).
-function goodRun(d, step){
-  let s = 0;
-  while(data[fmt(d)] === "good"){ s++; d = addDays(d,step); }
-  return s;
-}
-// Consecutive "good" days counting back from yesterday (today isn't
-// editable until it passes). Any day that isn't "good" ends the count.
-function currentStreak(){
-  return goodRun(addDays(startOfToday(), -1), -1); // most recent completed day = yesterday
-}
-function bestStreak(){
-  const goods = Object.keys(data).filter(k=>data[k]==="good").sort();
-  let best=0, run=0, prev=null;
-  for(const k of goods){
-    // Compare calendar dates, not milliseconds: DST days are 23h/25h long.
-    if(prev && fmt(addDays(new Date(prev+"T00:00:00"),1))===k) run++; else run=1;
-    best = Math.max(best, run); prev = k;
-  }
-  return best;
-}
 // ---- render ----
 let view = startOfToday(); view.setDate(1);
 let selected = fmt(addDays(startOfToday(), -1)); // default: yesterday
 
 function render(){
-  const cur = currentStreak();
-  const best = Math.max(bestStreak(), cur);
+  const cur = currentStreak(data, startOfToday());
+  const best = Math.max(bestStreak(data), cur);
   document.getElementById("cur").textContent = cur;
   document.getElementById("max").textContent = best;
   renderGoal(cur);
@@ -232,41 +192,29 @@ function renderQuick(){
   b.onclick = ()=> setDay(selected, "bad");
 }
 
-// Set (or clear, if tapped again) a day's value. When a day becomes good
-// it joins the good runs on either side of it into one run. The longer of
-// those neighbouring runs already reached its milestones, so only the ones
-// above it count as new (e.g. 12-15 good, marking 16 good: 4 -> 5, nothing
-// new; filling a gap between two 2-day runs: 2 -> 5, "3 days"). We only
-// celebrate when the joined run is the current streak, ending yesterday.
+// Set (or clear, if tapped again) a day's value, celebrating any new milestone.
 function setDay(key, val){
   if(data[key] === val) delete data[key]; // tap active value again to clear
   else data[key] = val;
   save();
   render();
-  if(data[key] !== "good") return;
-  const day = new Date(key + "T00:00:00");
-  const back = goodRun(addDays(day,-1), -1), fwd = goodRun(addDays(day,1), 1);
-  if(fmt(addDays(day, fwd)) !== fmt(addDays(startOfToday(), -1))) return;
-  const before = Math.max(back, fwd), after = back + 1 + fwd;
-  // Celebrate the highest milestone newly crossed by this change.
-  const crossed = MILESTONES.filter(m => before < m.n && m.n <= after);
-  if(crossed.length) celebrate(crossed[crossed.length-1]);
+  const m = newMilestone(data, key, startOfToday());
+  if(m) celebrate(m);
 }
 
 function renderGoal(cur){
   const box = document.getElementById("goalBox");
-  const next = MILESTONES.find(m=>m.n>cur);
+  const g = goalProgress(cur);
   box.innerHTML = "";
-  if(!next){
+  if(!g){
     box.innerHTML = `<div class="goal done"><div class="top"><span class="name">All goals reached</span></div>
       <div class="hint" style="margin:0">You're unstoppable. 🏆</div></div>`;
     return;
   }
-  const prev = [...MILESTONES].reverse().find(m=>m.n<=cur)?.n || 0;
-  const pct = Math.round(((cur-prev)/(next.n-prev))*100);
+  const {next, left, pct} = g;
   box.innerHTML = `<div class="goal">
     <div class="top"><span class="name">Next goal · ${next.name}</span>
-      <span class="left">${next.n-cur} day${next.n-cur===1?"":"s"} to go</span></div>
+      <span class="left">${left} day${left===1?"":"s"} to go</span></div>
     <div class="bar"><span style="width:${pct}%"></span></div></div>`;
 }
 

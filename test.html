@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Streak tests</title>
+<style>
+  body{font:14px/1.5 system-ui,sans-serif;margin:16px;background:#111;color:#ddd}
+  .pass{color:#4c8}.fail{color:#f66}
+  #summary{font-size:18px;font-weight:600}
+</style>
+</head>
+<body>
+<div id="summary">running…</div>
+<div id="tz"></div>
+<pre id="out"></pre>
+
+<script src="streak.js"></script>
+<script>
+// ---- tiny test harness ----
+let passed = 0, failed = 0;
+const out = [];
+function test(name, fn){
+  try{ fn(); passed++; out.push(`<span class="pass">✓</span> ${name}`); }
+  catch(e){ failed++; out.push(`<span class="fail">✗ ${name}\n    ${e.message}</span>`); }
+}
+function eq(actual, expected, what=""){
+  const a = JSON.stringify(actual), b = JSON.stringify(expected);
+  if(a !== b) throw new Error(`${what} expected ${b}, got ${a}`);
+}
+
+// Build data: good for every day from..to (inclusive), plus overrides.
+function goods(from, to, extra={}){
+  const d = {};
+  for(let x = parse(from); fmt(x) <= to; x = addDays(x,1)) d[fmt(x)] = "good";
+  return Object.assign(d, extra);
+}
+// DST transitions for common zones (2026): IL, EU, US — spring and fall.
+const DST_DAYS = ["2026-03-08","2026-03-27","2026-03-29","2026-10-25","2026-11-01"];
+
+// ---- date helpers ----
+test("fmt pads month and day", ()=> eq(fmt(new Date(2026,0,5)), "2026-01-05"));
+test("parse/fmt round-trip", ()=> eq(fmt(parse("2026-11-03")), "2026-11-03"));
+test("addDays crosses month end", ()=> eq(fmt(addDays(parse("2026-10-31"),1)), "2026-11-01"));
+test("addDays crosses year end", ()=> eq(fmt(addDays(parse("2026-12-31"),1)), "2027-01-01"));
+test("addDays handles leap day", ()=> eq(fmt(addDays(parse("2028-02-28"),1)), "2028-02-29"));
+test("addDays backwards across month", ()=> eq(fmt(addDays(parse("2026-11-01"),-1)), "2026-10-31"));
+test("addDays stays at midnight across DST days", ()=>{
+  for(const k of DST_DAYS){
+    const before = addDays(parse(k), -1), after = addDays(parse(k), 1);
+    eq([fmt(after), after.getHours()], [fmt(addDays(before,2)), 0], k);
+  }
+});
+test("startOfToday is local midnight", ()=>{
+  const t = startOfToday();
+  eq([t.getHours(), t.getMinutes(), t.getSeconds(), t.getMilliseconds()], [0,0,0,0]);
+  eq(fmt(t), fmt(new Date()));
+});
+
+// ---- goodRun ----
+test("goodRun counts back until a non-good day", ()=>{
+  const d = goods("2026-10-05","2026-10-10", {"2026-10-04":"bad"});
+  eq(goodRun(d, parse("2026-10-10"), -1), 6);
+});
+test("goodRun counts forward", ()=>{
+  const d = goods("2026-10-05","2026-10-10");
+  eq(goodRun(d, parse("2026-10-07"), 1), 4);
+});
+test("goodRun is 0 on an empty or bad day", ()=>{
+  eq(goodRun({}, parse("2026-10-10"), -1), 0);
+  eq(goodRun({"2026-10-10":"bad"}, parse("2026-10-10"), -1), 0);
+});
+
+// ---- currentStreak ----
+const TODAY = parse("2026-11-04");
+test("currentStreak counts back from yesterday", ()=>
+  eq(currentStreak(goods("2026-10-30","2026-11-03"), TODAY), 5));
+test("currentStreak ignores today", ()=>
+  eq(currentStreak(goods("2026-11-01","2026-11-04"), TODAY), 3));
+test("currentStreak is 0 when yesterday is empty", ()=>
+  eq(currentStreak(goods("2026-10-13","2026-11-02"), TODAY), 0));
+test("currentStreak is 0 when yesterday is bad", ()=>
+  eq(currentStreak(goods("2026-10-13","2026-11-02", {"2026-11-03":"bad"}), TODAY), 0));
+test("currentStreak spans month boundary and DST", ()=>
+  eq(currentStreak(goods("2026-10-13","2026-11-03"), TODAY), 22));
+test("currentStreak spans spring DST", ()=>
+  eq(currentStreak(goods("2026-03-01","2026-03-31"), parse("2026-04-01")), 31));
+
+// ---- bestStreak ----
+test("bestStreak of no data is 0", ()=> eq(bestStreak({}), 0));
+test("bestStreak ignores bad days", ()=> eq(bestStreak({"2026-10-01":"bad"}), 0));
+test("bestStreak picks the longest run", ()=>{
+  const d = Object.assign(goods("2026-09-01","2026-09-04"), goods("2026-09-10","2026-09-20"));
+  eq(bestStreak(d), 11);
+});
+test("bestStreak breaks on a bad day", ()=>
+  eq(bestStreak(goods("2026-09-01","2026-09-10", {"2026-09-05":"bad"})), 5));
+test("bestStreak breaks on a missing day", ()=>{
+  const d = goods("2026-09-01","2026-09-10"); delete d["2026-09-05"];
+  eq(bestStreak(d), 5);
+});
+test("bestStreak doesn't depend on key order", ()=>{
+  const d = {"2026-09-03":"good","2026-09-01":"good","2026-09-02":"good"};
+  eq(bestStreak(d), 3);
+});
+test("bestStreak spans fall DST (13/10 – 2/11, 3/11 empty)", ()=>
+  eq(bestStreak(goods("2026-10-13","2026-11-02")), 21));
+test("bestStreak spans spring DST", ()=>
+  eq(bestStreak(goods("2026-03-01","2026-03-31")), 31));
+test("bestStreak spans year end", ()=>
+  eq(bestStreak(goods("2026-12-25","2027-01-05")), 12));
+test("bestStreak over a full year", ()=>
+  eq(bestStreak(goods("2026-01-01","2026-12-31")), 365));
+
+// ---- newMilestone ----
+const Y = "2026-11-03"; // yesterday relative to TODAY
+const name = m => m && m.name;
+test("newMilestone: 3rd good day ending yesterday", ()=>
+  eq(name(newMilestone(goods("2026-11-01",Y), Y, TODAY)), "3 days"));
+test("newMilestone: null for a bad or cleared day", ()=>{
+  eq(newMilestone(goods("2026-11-01","2026-11-02",{[Y]:"bad"}), Y, TODAY), null);
+  eq(newMilestone(goods("2026-11-01","2026-11-02"), Y, TODAY), null);
+});
+test("newMilestone: null when the run doesn't end yesterday", ()=>
+  eq(newMilestone(goods("2026-10-20","2026-10-22"), "2026-10-22", TODAY), null));
+test("newMilestone: null when extending past a milestone", ()=>
+  eq(newMilestone(goods("2026-10-30",Y), Y, TODAY), null)); // 4 -> 5
+test("newMilestone: filling a gap between two 2-day runs", ()=>
+  eq(name(newMilestone(goods("2026-10-30",Y), "2026-11-01", TODAY)), "3 days"));
+test("newMilestone: no replay when re-marking inside a long run", ()=>
+  eq(newMilestone(goods("2026-10-24",Y), "2026-11-01", TODAY), null)); // 8 + 2 already ≥ 7
+test("newMilestone: highest milestone crossed wins", ()=>{
+  // 45 + 1 + 45 = 91: crosses both 60 and 90.
+  const d = goods(fmt(addDays(parse(Y),-90)), Y);
+  eq(name(newMilestone(d, fmt(addDays(parse(Y),-45)), TODAY)), "3 months");
+});
+test("newMilestone: run across DST and month boundary", ()=>
+  eq(name(newMilestone(goods("2026-10-21",Y), Y, TODAY)), "2 weeks")); // 13 -> 14
+</script>
+<script>
+// Summary last so a crash above shows up as a failure.
+document.getElementById("summary").innerHTML = failed
+  ? `<span class="fail">FAIL: ${failed} failed, ${passed} passed</span>`
+  : `<span class="pass">PASS: ${passed} passed</span>`;
+document.getElementById("tz").textContent =
+  "Timezone: " + Intl.DateTimeFormat().resolvedOptions().timeZone;
+document.getElementById("out").innerHTML = out.join("\n");
+</script>
+</body>
+</html>
