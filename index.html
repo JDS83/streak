@@ -200,9 +200,9 @@ function bestStreak(){
   const goods = Object.keys(data).filter(k=>data[k]==="good").sort();
   let best=0, run=0, prev=null;
   for(const k of goods){
-    const d = new Date(k+"T00:00:00");
-    if(prev && (d - prev)===86400000) run++; else run=1;
-    best = Math.max(best, run); prev = d;
+    // Compare calendar dates, not milliseconds: DST days are 23h/25h long.
+    if(prev && fmt(addDays(new Date(prev+"T00:00:00"),1))===k) run++; else run=1;
+    best = Math.max(best, run); prev = k;
   }
   return best;
 }
