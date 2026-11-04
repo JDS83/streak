@@ -62,6 +62,15 @@ function newMilestone(data, key, today){
   return crossed.length ? crossed[crossed.length-1] : null;
 }
 
+// True if `obj` looks like a backup: a plain object whose keys are all real
+// "YYYY-MM-DD" dates and whose values are all "good" or "bad". Anything
+// else (some other JSON file, a corrupted backup) is rejected as a whole.
+function isValidBackup(obj){
+  if(obj === null || typeof obj !== "object" || Array.isArray(obj)) return false;
+  return Object.entries(obj).every(([k,v]) =>
+    /^\d{4}-\d{2}-\d{2}$/.test(k) && fmt(parse(k)) === k && (v === "good" || v === "bad"));
+}
+
 // Progress toward the next milestone, or null once all are reached.
 function goalProgress(cur){
   const next = MILESTONES.find(m=>m.n>cur);

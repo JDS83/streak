@@ -273,15 +273,19 @@ fileInput.onchange=()=>{
   const f = fileInput.files[0]; if(!f) return;
   const r = new FileReader();
   r.onload=()=>{
-    try{
-      const incoming = JSON.parse(r.result);
-      if(typeof incoming!=="object" || Array.isArray(incoming)) throw 0;
-      const merge = confirm("OK = Merge with current data.\nCancel = Replace everything with the file.");
-      data = merge ? Object.assign({}, data, incoming) : incoming;
-      save(); render();
-      msg("Imported ✓");
-    }catch(e){ msg("Couldn't read that file — not a valid backup."); }
     fileInput.value = "";
+    let incoming;
+    try{ incoming = JSON.parse(r.result); }catch(e){ incoming = null; }
+    if(!isValidBackup(incoming)){ msg("Couldn't read that file — not a valid backup."); return; }
+    // Cancel always backs out; replacing needs its own explicit OK.
+    const n = Object.keys(incoming).length, have = Object.keys(data).length;
+    if(confirm(`Merge ${n} day${n===1?"":"s"} from the file into your data?\n(Days in both use the file's value.)`)){
+      data = Object.assign({}, data, incoming);
+    }else if(confirm(`Replace ALL your data (${have} day${have===1?"":"s"}) with the file (${n})?\nThis can't be undone.`)){
+      data = incoming;
+    }else{ msg("Import cancelled."); return; }
+    save(); render();
+    msg("Imported ✓");
   };
   r.readAsText(f);
 };
@@ -349,6 +353,22 @@ function confetti(){
 if("serviceWorker" in navigator){
   window.addEventListener("load", ()=> navigator.serviceWorker.register("./sw.js").catch(()=>{}));
 }
+
+// ---- day change ----
+// The app can stay open (or suspended on a phone) past midnight. When the
+// date changes, reset to what a fresh open would show: yesterday selected,
+// current month, today locked.
+let shownDay = fmt(startOfToday());
+function refreshIfNewDay(){
+  const today = fmt(startOfToday());
+  if(today === shownDay) return;
+  shownDay = today;
+  selected = fmt(addDays(startOfToday(), -1));
+  view = startOfToday(); view.setDate(1);
+  render();
+}
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) refreshIfNewDay(); });
+setInterval(refreshIfNewDay, 60000);
 
 render();
 </script>
